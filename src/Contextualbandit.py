@@ -1,5 +1,11 @@
 from observations import observational_process
 from observations import binary_search_fronterior,binary_search_fronterior_A_x_z
+import numpy as np
+def h_func(Y,A,Z):
+    return np.random.uniform()
+
+def g_func(X,A):
+    return np.random.uniform()
 def CCB_IV(Z,A,X,Y,dataset):
     # This policy is given by CCB-IV polivy
     # Use a contextual bandits with confounder(instrumental variable)
@@ -7,11 +13,12 @@ def CCB_IV(Z,A,X,Y,dataset):
     #这里可以先用一个比较naive的CCBmodel实现，之后再进行迭代。 
     # Set h1(Y,A,Z) as a projection to real number
     #第一步首先要做的是计算h1(Y,A,Z)
-    h1[Y,A,Z]=np.random.rand()
-    frontierior, expectation=binary_search_fronterior(dataset,Z,0,start_fronterior=0,end_fronterior=1, tol=1e-6)
-    h1[Y,A,Z]=fronterior+Y
-    g[X,A]=np.random.rand()
-    fronterior,expectation=binary_search_fronterior_A_x_z(dataset,Z,X,A,0,start_fronterior=0,end_fronterior=1,tol=1e-6)
+    h1=h_func(Y,A,Z)
+    frontierior, expectation=binary_search_fronterior(dataset,Z,0,start_fronterior=0,end_fronterior=1, tol=1e-1)
+    print(frontierior)
+    h1=fronterior+np.sum(Y)
+    g[X,A]=np.zeros((len(X), len(A)))
+    fronterior,expectation=binary_search_fronterior_A_x_z(dataset,Z,X,A,0,start_fronterior=0,end_fronterior=1,tol=1e-1)
     g[X,A]=h1[Y,A,Z]+fronterior
     return g(X,A)
 

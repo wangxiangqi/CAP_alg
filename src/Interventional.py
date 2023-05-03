@@ -24,13 +24,13 @@ def interventional_process(u,x,o,a,y,policy,estimator,dataset):
     return p_all
 
 def expectation_in_pi_Y(dataset,Y,policy,estimator):
-    subdataset=dataset[dataset['y']=Y]
+    subdataset = dataset[dataset['y'] == Y]
     for u in subdataset['u'].unique():
         for x in subdataset['x'].unique():
             for a in subdataset['a'].unique():
                 for o in subdataset['o'].unique():
                     for y in subdataset['y'].unique():
-                        interventional_process(u,x,o,a,y,policy,estimator,dataset):
+                        interventional_process(u,x,o,a,y,policy,estimator,dataset)
                         if observational_prob != 0:
                             expectation += Y * observational_prob
     return expectation / len(subdataset)

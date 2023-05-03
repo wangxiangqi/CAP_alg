@@ -12,9 +12,9 @@
 import numpy as np
 from contextualbandits.offpolicy import DoublyRobustEstimator
 from sklearn.linear_model import LogisticRegression, Ridge
-from interventional import expectation_in_pi_Y
+from Interventional import expectation_in_pi_Y
 from observations import binary_search_fronterior_A_x_z
-from contextualbandit import CCB_IV
+from Contextualbandit import CCB_IV
 from sklearn.metrics import mean_squared_error # 均方误差
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -120,10 +120,11 @@ def minimax_estimator(policy,dataset,confidence_set):
 def CAP_policy_learning(dataset,threshold=1e-6):
     # Now is here to build confidence set
     Set_g=[]
-    for data in dataset:
+    for index, data in dataset.iterrows():
+        #print(data)
         Set_g.append(CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset))
     policy=BootstrappedUCB(LogisticRegression())
-    policy.fit(dataset['x'],dataset.['a'],dataset['y'])
+    policy.fit(dataset['x'],dataset['a'],dataset['y'])
     # Define the doubly robust estimator
     doubly_robust_estimator = DoublyRobustEstimator()
     Conf_g=build_confidence_set(Set_g,threshold,100,policy, doubly_robust_estimator)
@@ -131,9 +132,4 @@ def CAP_policy_learning(dataset,threshold=1e-6):
     minimax_estimator(policy,dataset,Conf_g)
     return policy
     #整体的CAP algorithm的流程至此完毕
-
-def main():
-    # Read dataset
-    
-    CAP_policy_learning(dataset)
 
