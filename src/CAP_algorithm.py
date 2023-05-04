@@ -12,6 +12,7 @@
 import numpy as np
 from contextualbandits.offpolicy import DoublyRobustEstimator
 from sklearn.linear_model import LogisticRegression, Ridge
+from contextualbandits.online import BootstrappedUCB
 from Interventional import expectation_in_pi_Y
 from observations import binary_search_fronterior_A_x_z
 from Contextualbandit import CCB_IV
@@ -36,7 +37,7 @@ def merge_confidence_sets(confidence_sets):
         merged_confidence_set += confidence_set
     return merged_confidence_set
 
-def calculate_loss(clusters, hypothesis,policy, estimator, threshold):
+def calculate_loss(clusters, hypothesis,policy, estimator, threshold, dataset):
     """
     Calculate the loss of each cluster and return the optimal hypothesis with the smallest confidence set.
     Args:
@@ -102,11 +103,11 @@ def build_confidence_set(hypothesis, threshold,N,policy,estimator):
 
 
 def minimax_estimator(policy,dataset,confidence_set):
-    mini_v=expectation_in_pi_Y(dataset,g,policy,estimator)
+    mini_v=expectation_in_pi_Y(dataset,g,policy)
     # Traverse the g in confidence_set to make v minimal
     mini_g=None
     for g in confidence_set:
-        v = expectation_in_pi_Y(dataset, g, policy, estimator)
+        v = expectation_in_pi_Y(dataset, g, policy)
         if v<mini_v:
             mini_v=v
             mini_g=g
@@ -119,15 +120,19 @@ def minimax_estimator(policy,dataset,confidence_set):
 # Construct it as PPO algorithm does
 def CAP_policy_learning(dataset,threshold=1e-6):
     # Now is here to build confidence set
+    policy = BootstrappedUCB(LogisticRegression(),10)
+    #print(dataset)
+    context_dataset = np.vstack((dataset['x'], dataset['z'])).T
+    policy.fit(X=context_dataset,a=np.array(dataset['a']),r=np.array(dataset['y']))
     Set_g=[]
     for index, data in dataset.iterrows():
         #print(data)
-        Set_g.append(CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset))
+        Set_g.append(CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy))
     policy=BootstrappedUCB(LogisticRegression())
     policy.fit(dataset['x'],dataset['a'],dataset['y'])
     # Define the doubly robust estimator
-    doubly_robust_estimator = DoublyRobustEstimator()
-    Conf_g=build_confidence_set(Set_g,threshold,100,policy, doubly_robust_estimator)
+    #doubly_robust_estimator = DoublyRobustEstimator()
+    Conf_g=build_confidence_set(Set_g,threshold,100,policy)
     #over here confidence set is secure
     minimax_estimator(policy,dataset,Conf_g)
     return policy
