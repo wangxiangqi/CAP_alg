@@ -12,7 +12,7 @@
 import numpy as np
 from contextualbandits.offpolicy import DoublyRobustEstimator
 from sklearn.linear_model import LogisticRegression, Ridge
-from contextualbandits.online import BootstrappedUCB
+from contextualbandits.online import BootstrappedUCB, LinUCB, LinTS
 from Interventional import expectation_in_pi_Y
 from observations import binary_search_fronterior_A_x_z
 from Contextualbandit import CCB_IV
@@ -99,42 +99,53 @@ def build_confidence_set(hypothesis, threshold,N,policy,estimator):
         loss,confidence_set = calculate_loss(confidence_sets, hypothesis)
 
     merged_confidence_set = merge_confidence_sets(confidence_sets)
+    print("merged_confidence_set")
     return merged_confidence_set
 
 
-def minimax_estimator(policy,dataset,confidence_set):
+def minimax_estimator(policy,dataset,confidence_set, threshold):
     mini_v=expectation_in_pi_Y(dataset,g,policy)
     # Traverse the g in confidence_set to make v minimal
     mini_g=None
+    mini_v_list=[]
     for g in confidence_set:
         v = expectation_in_pi_Y(dataset, g, policy)
         if v<mini_v:
             mini_v=v
             mini_g=g
+            if abs(mini_v-v)<threshold:
+                mini_v.append(v)
     #这里改变policy，得到max的policy
-    policy.fit(dataset['x'],dataset['a'],expectation_in_pi_Y(dataset, mini_g, policy, estimator))
-
-
+    #How to maimize the policy to make it to the maximize mini_v
+    policy.fit(np.array(dataset['x']),np.array(dataset['a']), np.array(mini_v_list))
+    return policy
     
 
 # Construct it as PPO algorithm does
-def CAP_policy_learning(dataset,threshold=1e-6):
+def CAP_policy_learning(dataset,threshold=1e-1):
     # Now is here to build confidence set
-    policy = BootstrappedUCB(LogisticRegression(),10)
+    policy = LinTS(10)
     #print(dataset)
     context_dataset = np.vstack((dataset['x'], dataset['z'])).T
     policy.fit(X=context_dataset,a=np.array(dataset['a']),r=np.array(dataset['y']))
     Set_g=[]
+    countb=0
     for index, data in dataset.iterrows():
         #print(data)
-        Set_g.append(CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy))
-    policy=BootstrappedUCB(LogisticRegression())
-    policy.fit(dataset['x'],dataset['a'],dataset['y'])
+        countb+=1
+        print("index", index)
+        if (countb)<200:
+            Temp=CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
+            #print("Temp is",Temp)
+            Set_g.append(Temp)
+        else:
+            break
+    print("Set_g is ",Set_g)
     # Define the doubly robust estimator
     #doubly_robust_estimator = DoublyRobustEstimator()
     Conf_g=build_confidence_set(Set_g,threshold,100,policy)
     #over here confidence set is secure
-    minimax_estimator(policy,dataset,Conf_g)
+    minimax_estimator(policy,dataset,Conf_g, 2e-1)
     return policy
     #整体的CAP algorithm的流程至此完毕
 

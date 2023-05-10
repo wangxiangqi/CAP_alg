@@ -15,12 +15,13 @@ def CCB_IV(Z,A,X,Y,dataset, policy):
     #第一步首先要做的是计算h1(Y,A,Z)
     policy=policy
     h1=h_func(Y,A,Z)
-    frontierior, expectation=binary_search_fronterior(dataset,Z,policy,0,start_fronterior=0,end_fronterior=1, tol=1e-1)
-    print(frontierior)
-    h1=fronterior+np.sum(Y)
+    fronterior=0
+    frontierior, expectation=binary_search_fronterior(dataset,Z,policy,0,start_fronterior=0,end_fronterior=1, tol=1e-3)
+    #print(frontierior)
+    h11=fronterior+np.sum(Y)
     g=g_func(X,A)
-    fronterior,expectation=binary_search_fronterior_A_x_z(dataset,Z,X,A, policy,0,start_fronterior=0,end_fronterior=1,tol=1e-1)
-    g=h1+fronterior
+    fronterior,expectation=binary_search_fronterior_A_x_z(dataset,Z,X,A,policy,0,start_fronterior=0,end_fronterior=1,tol=1e-3)
+    g=h11+fronterior
     return g
 
 def CCB_PV(a,u,x,o):
