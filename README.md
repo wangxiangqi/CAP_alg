@@ -26,4 +26,10 @@ We built in the CCB_IV part and CCB_PV method in and used the expectation search
 
 1. Sampling numbers of calculating probility in observational process and interventional process
 2. Hypothesis space volume
-3.
+3. Confidence set volume or random state
+4. minimax estimator threshold or fully traverse dataset or partially traverse dataset
+
+## Details of the version of implemention
+
+Sampling numbers of calculating probility is 100 in observational process
+

@@ -118,7 +118,7 @@ def minimax_estimator(policy,dataset,confidence_set, threshold):
     mini_g_list=[]
     countb=0
     for g in confidence_set:
-        print("countb, conf_set",countb,len(confidence_set))
+        #print("countb, conf_set",countb,len(confidence_set))
         v = expectation_in_pi_Y(dataset, g, policy)
         if abs(v-mini_v)<threshold or v<mini_v:
             mini_v=v
@@ -127,7 +127,7 @@ def minimax_estimator(policy,dataset,confidence_set, threshold):
     #这里改变policy，得到max的policy
     #How to maimize the policy to make it to the maximize mini_v
     #这里要改变x和a的list
-    print("mini_v_list",mini_v_list)
+    #print("mini_v_list",mini_v_list)
     X_list=[]
     A_list=[]
     V_list=[]
@@ -137,21 +137,21 @@ def minimax_estimator(policy,dataset,confidence_set, threshold):
         #print("index",index)
         countb+=1
         #print(countb)
-        if countb<200:
+        if countb<20:
             temp=CCB_IV(row['x'],row['a'],row['x'],row['y'],dataset,policy)
-            for i in range(len(mini_v_list)):
-                #print("gap",abs(temp-mini_v_list[i]))
-                if abs(temp-mini_v_list[i])<threshold:
+            for i in range(len(mini_g_list)):
+                #print("gap",abs(temp-mini_g_list[i]))
+                if abs(temp-mini_g_list[i])<threshold:
                     X_list.append(row['x'])
+                    X_list.append(row['z'])
                     A_list.append(row['a'])
                     V_list.append(mini_v_list[i])
         else:
             break
-    print(X_list)
-    print(A_list)
-    print(V_list)
-    policy.fit(np.array(X_list).T,np.array(A_list).T,np.array(V_list).T,continue_from_last=True)
-    return policy
+    X_list=np.array(X_list).reshape(-1,2)
+    A_list=np.array(A_list).T
+    V_list=np.array(V_list)
+    return X_list,A_list,V_list
     
 
 # Construct it as PPO algorithm does
@@ -167,7 +167,7 @@ def CAP_policy_learning_IV(dataset,threshold=1e-1):
         #print(data)
         countb+=1
         #print("index", index)
-        if (countb)<200:
+        if (countb)<20:
             Temp=CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
             #print("Temp is",Temp)
             Set_g.append(Temp)
@@ -181,7 +181,13 @@ def CAP_policy_learning_IV(dataset,threshold=1e-1):
     Conf_g=build_confidence_set(Set_g,threshold,8,policy,dataset)
     print("successfully generated confidence set")
     #over here confidence set is secure
-    minimax_estimator(policy,dataset,Conf_g, 2e-1)
+    X_list,V_list,A_list=minimax_estimator(policy,dataset,Conf_g, 4)
+    print("successule minimax estimator")
+    Total_X=np.concatenate((context_dataset,X_list))
+    Total_A=np.concatenate((A_list,dataset['a']))
+    Total_R=np.concatenate((V_list,dataset['y']))
+    policy = LinTS(10)
+    policy.fit(Total_X,Total_A,Total_R)
     return policy
     #整体的CAP algorithm的流程至此完毕
 
@@ -196,7 +202,7 @@ def CAP_policy_learning_PV(dataset,threshold=1e-1):
     for index, data in dataset.iterrows():
         #print(data)
         countb+=1
-        print("index", index)
+        #print("index", index)
         if (countb)<20:
             Temp=CCB_PV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
             #print("Temp is",Temp)
@@ -209,7 +215,13 @@ def CAP_policy_learning_PV(dataset,threshold=1e-1):
     Set_g=np.array(Set_g).reshape(1,-1).T
     Conf_g=build_confidence_set(Set_g,threshold,100,policy,dataset)
     #over here confidence set is secure
-    minimax_estimator(policy,dataset,Conf_g, 4)
+    X_list,V_list,A_list=minimax_estimator(policy,dataset,Conf_g, 4)
+    print("successule minimax estimator")
+    Total_X=np.concatenate((context_dataset,X_list))
+    Total_A=np.concatenate((A_list,dataset['a']))
+    Total_R=np.concatenate((V_list,dataset['y']))
+    policy = LinTS(10)
+    policy.fit(Total_X,Total_A,Total_R)
     return policy
     #整体的CAP algorithm的流程至此完毕
 
