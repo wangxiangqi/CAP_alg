@@ -21,3 +21,9 @@ We implemented the probability calculation and expectation calculating in interv
 For Contextualbandit.py:
 
 We built in the CCB_IV part and CCB_PV method in and used the expectation search in Interventional and observations to calculate IES for estimated g(x,a)
+
+## Parameters to tune:
+
+1. Sampling numbers of calculating probility in observational process and interventional process
+2. Hypothesis space volume
+3.

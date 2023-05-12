@@ -12,10 +12,11 @@
 import numpy as np
 from contextualbandits.offpolicy import DoublyRobustEstimator
 from sklearn.linear_model import LogisticRegression, Ridge
-from contextualbandits.online import BootstrappedUCB, LinUCB, LinTS
+from contextualbandits.online import LinTS
 from Interventional import expectation_in_pi_Y
 from observations import binary_search_fronterior_A_x_z
 from Contextualbandit import CCB_IV
+from Contextualbandit import CCB_PV
 from sklearn.metrics import mean_squared_error # 均方误差
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -35,9 +36,10 @@ def merge_confidence_sets(confidence_sets):
     merged_confidence_set = []
     for confidence_set in confidence_sets:
         merged_confidence_set += confidence_set
+    merged_confidence_set=np.unique(merged_confidence_set)
     return merged_confidence_set
 
-def calculate_loss(clusters, hypothesis,policy, estimator, threshold, dataset):
+def calculate_loss(clusters,hypothesis,policy,threshold, dataset):
     """
     Calculate the loss of each cluster and return the optimal hypothesis with the smallest confidence set.
     Args:
@@ -53,7 +55,7 @@ def calculate_loss(clusters, hypothesis,policy, estimator, threshold, dataset):
         # Calculate the average reward of each hypothesis in the cluster
         rewards = []
         for h in cluster:
-            rewards.append(expectation_in_pi_Y(dataset, h, policy, estimator))
+            rewards.append(expectation_in_pi_Y(dataset, h, policy))
         # Find the hypothesis with the highest average reward
         max_reward=max(rewards)
         ci=t.interval(1-threshold,len(reward),loc=max_reward, scale=np.std(rewards)/np.sqrt(len(reward)))
@@ -69,7 +71,7 @@ def calculate_loss(clusters, hypothesis,policy, estimator, threshold, dataset):
     return loss_val, confidence_set
 
 
-def build_confidence_set(hypothesis, threshold,N,policy,estimator):
+def build_confidence_set(hypothesis, threshold,N,policy, dataset):
     # Use Q-ensemble method to create dataset
     # Cluster hypothesis into N clusters
     kmeans = KMeans(n_clusters=N).fit(hypothesis)
@@ -83,46 +85,107 @@ def build_confidence_set(hypothesis, threshold,N,policy,estimator):
     for cluster in hypothesis_clusters:
         confidence_sets.append(cluster)
     # Merge confidence sets
-    # Calculate loss based on metric and ensembled g
-    loss,confidence_set = calculate_loss(confidence_sets, hypothesis)
+    # Calculate loss based on metric and ensembled g4
+    loss=silhouette_score(hypothesis, clusters)
+    countb=0
     while loss > threshold:
-        kmeans = KMeans(n_clusters=N,random_state=42).fit(hypothesis)
-        clusters = kmeans.labels_
-        # Assign each hypothesis to its corresponding cluster
-        hypothesis_clusters = [[] for _ in range(N)]
-        for i, h in enumerate(hypothesis):
-            hypothesis_clusters[clusters[i]].append(h)
-        # Create confidence set for each cluster
-        confidence_sets = []
-        for cluster in hypothesis_clusters:
-            confidence_sets.append(cluster) 
-        loss,confidence_set = calculate_loss(confidence_sets, hypothesis)
-
+        countb+=1
+        if(countb<10):
+            kmeans = KMeans(n_clusters=N,random_state=42).fit(hypothesis)
+            clusters = kmeans.labels_
+            # Assign each hypothesis to its corresponding cluster
+            hypothesis_clusters = [[] for _ in range(N)]
+            for i, h in enumerate(hypothesis):
+                hypothesis_clusters[clusters[i]].append(h)
+            # Create confidence set for each cluster
+            confidence_sets = []
+            for cluster in hypothesis_clusters:
+                confidence_sets.append(cluster) 
+            #confidence_sets=np.array(confidence_sets).reshape(1,-1)
+            loss=silhouette_score(hypothesis, clusters)
+        else:
+            break
     merged_confidence_set = merge_confidence_sets(confidence_sets)
-    print("merged_confidence_set")
+    print("merged_confidence_set",merged_confidence_set)
     return merged_confidence_set
 
 
 def minimax_estimator(policy,dataset,confidence_set, threshold):
-    mini_v=expectation_in_pi_Y(dataset,g,policy)
+    mini_v=10000
     # Traverse the g in confidence_set to make v minimal
     mini_g=None
     mini_v_list=[]
+    mini_g_list=[]
+    countb=0
     for g in confidence_set:
+        print("countb, conf_set",countb,len(confidence_set))
         v = expectation_in_pi_Y(dataset, g, policy)
-        if v<mini_v:
+        if abs(v-mini_v)<threshold or v<mini_v:
             mini_v=v
-            mini_g=g
-            if abs(mini_v-v)<threshold:
-                mini_v.append(v)
+            mini_v_list.append(v)
+            mini_g_list.append(g)
     #这里改变policy，得到max的policy
     #How to maimize the policy to make it to the maximize mini_v
-    policy.fit(np.array(dataset['x']),np.array(dataset['a']), np.array(mini_v_list))
+    #这里要改变x和a的list
+    print("mini_v_list",mini_v_list)
+    X_list=[]
+    A_list=[]
+    V_list=[]
+    countb=0
+    for index,row in dataset.iterrows():
+        #Calulate g of according X and A
+        #print("index",index)
+        countb+=1
+        #print(countb)
+        if countb<200:
+            temp=CCB_IV(row['x'],row['a'],row['x'],row['y'],dataset,policy)
+            for i in range(len(mini_v_list)):
+                #print("gap",abs(temp-mini_v_list[i]))
+                if abs(temp-mini_v_list[i])<threshold:
+                    X_list.append(row['x'])
+                    A_list.append(row['a'])
+                    V_list.append(mini_v_list[i])
+        else:
+            break
+    print(X_list)
+    print(A_list)
+    print(V_list)
+    policy.fit(np.array(X_list).T,np.array(A_list).T,np.array(V_list).T,continue_from_last=True)
     return policy
     
 
 # Construct it as PPO algorithm does
-def CAP_policy_learning(dataset,threshold=1e-1):
+def CAP_policy_learning_IV(dataset,threshold=1e-1):
+    # Now is here to build confidence set
+    policy = LinTS(10)
+    #print(dataset)
+    context_dataset = np.vstack((dataset['x'], dataset['z'])).T
+    policy.fit(X=context_dataset,a=np.array(dataset['a']),r=np.array(dataset['y']))
+    Set_g=[]
+    countb=0
+    for index, data in dataset.iterrows():
+        #print(data)
+        countb+=1
+        #print("index", index)
+        if (countb)<200:
+            Temp=CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
+            #print("Temp is",Temp)
+            Set_g.append(Temp)
+        else:
+            break
+    #print("Set_g is ",Set_g)
+    print("successfully generated hypothesis dataset")
+    # Define the doubly robust estimator
+    #doubly_robust_estimator = DoublyRobustEstimator()
+    Set_g=np.array(Set_g).reshape(1,-1).T
+    Conf_g=build_confidence_set(Set_g,threshold,8,policy,dataset)
+    print("successfully generated confidence set")
+    #over here confidence set is secure
+    minimax_estimator(policy,dataset,Conf_g, 2e-1)
+    return policy
+    #整体的CAP algorithm的流程至此完毕
+
+def CAP_policy_learning_PV(dataset,threshold=1e-1):
     # Now is here to build confidence set
     policy = LinTS(10)
     #print(dataset)
@@ -134,8 +197,8 @@ def CAP_policy_learning(dataset,threshold=1e-1):
         #print(data)
         countb+=1
         print("index", index)
-        if (countb)<200:
-            Temp=CCB_IV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
+        if (countb)<20:
+            Temp=CCB_PV(data['z'],data['a'],data['x'],data['y'],dataset, policy)
             #print("Temp is",Temp)
             Set_g.append(Temp)
         else:
@@ -143,9 +206,10 @@ def CAP_policy_learning(dataset,threshold=1e-1):
     print("Set_g is ",Set_g)
     # Define the doubly robust estimator
     #doubly_robust_estimator = DoublyRobustEstimator()
-    Conf_g=build_confidence_set(Set_g,threshold,100,policy)
+    Set_g=np.array(Set_g).reshape(1,-1).T
+    Conf_g=build_confidence_set(Set_g,threshold,100,policy,dataset)
     #over here confidence set is secure
-    minimax_estimator(policy,dataset,Conf_g, 2e-1)
+    minimax_estimator(policy,dataset,Conf_g, 4)
     return policy
     #整体的CAP algorithm的流程至此完毕
 
